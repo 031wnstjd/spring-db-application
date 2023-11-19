@@ -1,6 +1,7 @@
 package hello.springtx.propagation;
 
 import lombok.extern.slf4j.Slf4j;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 import javax.sql.DataSource;
@@ -102,5 +104,20 @@ public class BasicTxTest {
 
         log.info("외부 트랜잭션 롤백");
         txManager.rollback(outer); // outer는 신규 트랜잭션이므로 논리적 트랜잭션 rollback을 수행하면 물리적 트랜잭션 rollback이 수행됨
+    }
+
+    @Test
+    void inner_rollback() {
+        log.info("외부 트랜잭션 시작");
+        TransactionStatus outer = txManager.getTransaction(new DefaultTransactionAttribute());
+
+        log.info("내부 트랜잭션 시작");
+        TransactionStatus inner = txManager.getTransaction(new DefaultTransactionAttribute());
+        log.info("내부 트랜잭션 롤백");
+        txManager.rollback(inner); // rollback-only 표시 (내부 트랜잭션은 신규 트랜잭션이 아니므로 실제 물리 트랜잭션을 롤백하지 못한다. 이에 따라 `rollbackOnly=true` 마크를 표시)
+
+        log.info("외부 트랜잭션 커밋");
+        Assertions.assertThatThrownBy(() -> txManager.commit(outer)) // Global transaction is marked as rollback-only => 실제 물리 트랜잭션 rollback 진행
+                .isInstanceOf(UnexpectedRollbackException.class);
     }
 }
