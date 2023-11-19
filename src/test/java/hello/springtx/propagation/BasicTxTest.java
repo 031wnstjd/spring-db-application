@@ -1,7 +1,7 @@
 package hello.springtx.propagation;
 
+import hello.springtx.order.OrderService;
 import lombok.extern.slf4j.Slf4j;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,11 +9,14 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 import javax.sql.DataSource;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Slf4j
 @SpringBootTest
@@ -21,6 +24,9 @@ public class BasicTxTest {
 
     @Autowired
     PlatformTransactionManager txManager;
+
+    @Autowired
+    OrderService orderService;
 
     @TestConfiguration
     static class Config {
@@ -117,7 +123,26 @@ public class BasicTxTest {
         txManager.rollback(inner); // rollback-only 표시 (내부 트랜잭션은 신규 트랜잭션이 아니므로 실제 물리 트랜잭션을 롤백하지 못한다. 이에 따라 `rollbackOnly=true` 마크를 표시)
 
         log.info("외부 트랜잭션 커밋");
-        Assertions.assertThatThrownBy(() -> txManager.commit(outer)) // Global transaction is marked as rollback-only => 실제 물리 트랜잭션 rollback 진행
+        assertThatThrownBy(() -> txManager.commit(outer)) // Global transaction is marked as rollback-only => 실제 물리 트랜잭션 rollback 진행
                 .isInstanceOf(UnexpectedRollbackException.class);
+    }
+
+    @Test
+    void inner_rollback_requires_new() {
+        log.info("외부 트랜잭션 시작");
+        TransactionStatus outer = txManager.getTransaction(new DefaultTransactionAttribute());
+        log.info("outer.isNewTransaction()={}", outer.isNewTransaction()); // true
+
+        log.info("내부 트랜잭션 시작");
+        DefaultTransactionAttribute definition = new DefaultTransactionAttribute();
+        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW); // 기존 트랜잭션을 무시하고 새로운 신규 물리 트랜잭션을 생성
+        TransactionStatus inner = txManager.getTransaction(definition);
+        log.info("inner.isNewTransaction()={}", inner.isNewTransaction()); // true
+
+        log.info("내부 트랜잭션 롤백");
+        txManager.rollback(inner); // 롤백
+
+        log.info("외부 트랜잭션 커밋");
+        txManager.commit(outer); // 커밋
     }
 }
