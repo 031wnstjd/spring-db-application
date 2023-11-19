@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
@@ -38,7 +39,7 @@ class OrderServiceTest {
         order.setUsername("예외");
 
         // when
-        Assertions.assertThatThrownBy(() -> orderService.order(order))
+        assertThatThrownBy(() -> orderService.order(order))
                 .isInstanceOf(RuntimeException.class);
 
         // then
