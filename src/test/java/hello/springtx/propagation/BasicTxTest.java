@@ -25,9 +25,6 @@ public class BasicTxTest {
     @Autowired
     PlatformTransactionManager txManager;
 
-    @Autowired
-    OrderService orderService;
-
     @TestConfiguration
     static class Config {
         @Bean
